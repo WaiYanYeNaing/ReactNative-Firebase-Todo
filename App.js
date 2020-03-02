@@ -20,27 +20,62 @@ import {
   Left
 } from "native-base";
 import firebase from "./FIrebase";
+import { Permissions, Notifications } from "expo";
 
 const data = [];
 
 export default class App extends Component {
+  _isMounted = false;
+
   constructor(props) {
     super(props);
 
     this.state = {
-      listViewData: data,
-      newContact: ""
+      listViewData: [],
+      newContact: "",
+      testArr: []
     };
   }
 
   componentDidMount() {
     let self = this;
+    self._isMounted = true;
+    self.getById();
+  }
+
+  registerForPushNotificationsAsync = async () => {
+    const { status } = await Permissions.askAsync(Permissions.NOTIFICATIONS);
+    if (status !== "granted") {
+      alert("No notification permissions!");
+      return;
+    }
+
+    // Get the token that identifies this device
+    let token = await Notifications.getExpoPushTokenAsync();
+  };
+
+  getAll() {
+    let self = this;
+    let newData = [];
     firebase
       .database()
       .ref("/contacts")
-      .on("child_added", function(data) {
-        let newData = [...self.state.listViewData];
+      .on("child_added", data => {
         newData.push(data);
+        self.setState({ listViewData: newData });
+      });
+  }
+
+  getById() {
+    let self = this;
+    let newData = [];
+    firebase
+      .database()
+      .ref("/contacts")
+      .on("child_added", data => {
+        if (data.val().id == 1) {
+          newData.push(data);
+        }
         self.setState({ listViewData: newData });
       });
   }
@@ -54,10 +89,17 @@ export default class App extends Component {
       .database()
       .ref("/contacts")
       .child(key)
-      .set({ name: data });
+      .set({ id: 1, name: data });
   }
 
-  async deleteRow() {}
+  async deleteRow(data) {
+    let self = this;
+    await firebase
+      .database()
+      .ref("contacts/" + data.key)
+      .set(null);
+    self.getAll();
+  }
 
   showInformation() {}
 
@@ -68,7 +110,7 @@ export default class App extends Component {
           <Content>
             <Item regular style={{ borderColor: "#D4B996FF" }}>
               <Input
-                placeholder="Add name"
+                placeholder="Add Note"
                 style={{ color: "#A07855FF" }}
                 onChangeText={newContact => this.setState({ newContact })}
               />
@@ -98,9 +140,7 @@ export default class App extends Component {
                   </TouchableOpacity>
                 </Right>
                 <Right>
-                  <TouchableOpacity
-                    onPress={() => this.deleteRow(secId, rowId, rowMap, data)}
-                  >
+                  <TouchableOpacity onPress={() => this.deleteRow(value)}>
                     <Icon name="trash" style={{ color: "black" }} />
                   </TouchableOpacity>
                 </Right>
